@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>עורך מסמכי וורד</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+  :root{
+    --bg: #eef0f3;
+    --toolbar-bg: #ffffff;
+    --toolbar-border: #dcdfe4;
+    --paper: #ffffff;
+    --ink: #2b2d33;
+    --accent: #2f5fd0;
+    --accent-soft: #e7edfb;
+    --muted: #757b86;
+    --shadow: 0 2px 10px rgba(20,22,30,0.08);
+    --page-w: 816px;
+    --page-h: 1056px;
+    --pad-v: 70px;
+    --pad-h: 64px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    font-family: 'Segoe UI', Arial, 'Rubik', sans-serif;
+    color:var(--ink);
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  /* Toolbar */
+  #toolbar{
+    background:var(--toolbar-bg);
+    border-bottom:1px solid var(--toolbar-border);
+    padding:8px 14px;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:6px;
+    box-shadow:var(--shadow);
+    z-index:5;
+  }
+  .group{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    padding:0 8px;
+    border-right:1px solid var(--toolbar-border);
+  }
+  .group:last-child{border-right:none;}
+  button.tb-btn{
+    background:transparent;
+    border:1px solid transparent;
+    border-radius:6px;
+    padding:6px 9px;
+    cursor:pointer;
+    font-size:14px;
+    color:var(--ink);
+    display:flex;
+    align-items:center;
+    gap:4px;
+    transition:.12s;
+  }
+  button.tb-btn:hover{background:var(--accent-soft); border-color:var(--accent);}
+  button.primary{
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:6px;
+    padding:7px 14px;
+    font-size:13.5px;
+    cursor:pointer;
+    font-weight:600;
+  }
+  button.primary:hover{filter:brightness(1.08);}
+  select, input[type=color]{
+    border:1px solid var(--toolbar-border);
+    border-radius:6px;
+    padding:5px 6px;
+    font-size:13px;
+    background:#fff;
+    cursor:pointer;
+  }
+  input[type=color]{width:34px; height:30px; padding:2px;}
+  #fontSize{width:60px;}
+  #fontFamily{width:130px;}
+  .file-label{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    padding:6px 10px;
+    border-radius:6px;
+    border:1px solid var(--toolbar-border);
+    cursor:pointer;
+    font-size:13px;
+  }
+  .file-label:hover{background:var(--accent-soft); border-color:var(--accent);}
+  input[type=file]{display:none;}
+
+  /* Workspace */
+  #workspace{
+    flex:1;
+    overflow:auto;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:36px 20px 80px;
+    gap:28px;
+  }
+  .sheet{
+    background:var(--paper);
+    width:var(--page-w);
+    max-width:100%;
+    height:var(--page-h);
+    box-shadow:var(--shadow);
+    padding:var(--pad-v) var(--pad-h);
+    display:flex;
+    flex-direction:column;
+  }
+  .page-content{
+    outline:none;
+    line-height:1.6;
+    font-size:16px;
+    height:100%;
+    overflow:hidden;
+  }
+  .page-content img{max-width:100%;}
+  .page-content table{border-collapse:collapse; width:100%; margin:8px 0;}
+  .page-content table td, .page-content table th{
+    border:1px solid #b9bec7;
+    padding:5px 9px;
+    text-align:right;
+  }
+  .page-content table th{background:#f2f4f7;}
+  .page-content:empty:before{
+    content:"התחל לכתוב כאן...";
+    color:#b3b7bf;
+  }
+  .page-number{
+    text-align:center;
+    font-size:12px;
+    color:var(--muted);
+    margin-top:6px;
+  }
+
+  /* Floating selection toolbar */
+  #selToolbar{
+    position:fixed;
+    display:none;
+    align-items:center;
+    gap:6px;
+    background:#26282e;
+    padding:6px 8px;
+    border-radius:10px;
+    box-shadow:0 6px 18px rgba(0,0,0,0.25);
+    z-index:40;
+  }
+  #selToolbar.open{display:flex;}
+  #selToolbar button{
+    background:transparent;
+    border:1px solid transparent;
+    border-radius:6px;
+    color:#fff;
+    padding:5px 8px;
+    cursor:pointer;
+    font-size:13px;
+  }
+  #selToolbar button:hover{background:#3c3f47;}
+  #selToolbar select{
+    background:#3c3f47;
+    color:#fff;
+    border:none;
+    border-radius:6px;
+    padding:5px 6px;
+    font-size:12.5px;
+  }
+  #selToolbar input[type=color]{
+    width:26px; height:26px; padding:0; border:none; border-radius:6px; background:#3c3f47;
+  }
+  #selToolbar .divider{width:1px; height:20px; background:#484b54;}
+
+  /* Search box */
+  #searchBox{
+    position:fixed;
+    top:70px;
+    left:50%;
+    transform:translateX(-50%);
+    background:#fff;
+    border:1px solid var(--toolbar-border);
+    box-shadow:var(--shadow);
+    border-radius:10px;
+    padding:10px 12px;
+    display:none;
+    align-items:center;
+    gap:8px;
+    z-index:20;
+  }
+  #searchBox.open{display:flex;}
+  #searchBox input{
+    border:1px solid var(--toolbar-border);
+    border-radius:6px;
+    padding:6px 10px;
+    font-size:14px;
+    width:200px;
+  }
+  #searchCount{font-size:12.5px; color:var(--muted); min-width:56px; text-align:center;}
+  #searchBox button{
+    border:1px solid var(--toolbar-border);
+    background:#fff;
+    border-radius:6px;
+    padding:5px 9px;
+    cursor:pointer;
+    font-size:13px;
+  }
+  #searchBox button:hover{background:var(--accent-soft);}
+  #searchClose{border:none; color:var(--muted); font-size:16px; padding:2px 6px;}
+  mark.hit{background:#ffe58a;}
+  mark.hit.current{background:#ff9d3d; color:#fff;}
+
+  #status{
+    position:fixed;
+    bottom:14px;
+    left:50%;
+    transform:translateX(-50%);
+    background:#2b2d33;
+    color:#fff;
+    padding:8px 16px;
+    border-radius:20px;
+    font-size:13px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s;
+    z-index:30;
+  }
+  #status.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <div class="group">
+    <label class="file-label" id="newDocBtn">📄 מסמך חדש</label>
+  </div>
+  <div class="group">
+    <label class="file-label">📂 פתח קובץ וורד
+      <input type="file" id="openDocx" accept=".docx">
+    </label>
+    <label class="file-label">🖼️ הוסף תמונה
+      <input type="file" id="imgInput" accept="image/*">
+    </label>
+  </div>
+  <div class="group">
+    <button class="tb-btn" id="btnBold" title="מודגש (Ctrl+B)"><b>B</b></button>
+    <button class="tb-btn" id="btnItalic" title="נטוי (Ctrl+I)"><i>I</i></button>
+    <button class="tb-btn" id="btnUnderline" title="קו תחתון (Ctrl+U)"><u>U</u></button>
+  </div>
+  <div class="group">
+    <select id="fontFamily" title="גופן">
+      <option value="Arial">Arial</option>
+      <option value="'David', serif">David</option>
+      <option value="'Times New Roman', serif">Times New Roman</option>
+      <option value="Calibri, sans-serif">Calibri</option>
+      <option value="'Rubik', sans-serif">Rubik</option>
+      <option value="'Assistant', sans-serif">Assistant</option>
+      <option value="Tahoma">Tahoma</option>
+      <option value="'Courier New', monospace">Courier New</option>
+    </select>
+    <select id="fontSize" title="גודל גופן">
+      <option value="1">10</option>
+      <option value="2">13</option>
+      <option value="3" selected>16</option>
+      <option value="4">18</option>
+      <option value="5">24</option>
+      <option value="6">32</option>
+      <option value="7">48</option>
+    </select>
+  </div>
+  <div class="group">
+    <label style="font-size:12px; color:var(--muted); display:flex; align-items:center; gap:3px;">✏️ צבע
+      <input type="color" id="textColor" value="#2b2d33">
+    </label>
+    <label style="font-size:12px; color:var(--muted); display:flex; align-items:center; gap:3px;">🖍️ הדגשה
+      <input type="color" id="bgColor" value="#fff6a3">
+    </label>
+  </div>
+  <div class="group">
+    <button class="tb-btn" id="btnLeft" title="יישור לימין">➡️</button>
+    <button class="tb-btn" id="btnCenter" title="מרכוז">↔️</button>
+    <button class="tb-btn" id="btnRight" title="יישור לשמאל">⬅️</button>
+  </div>
+  <div class="group" style="border-right:none; margin-right:auto;">
+    <button class="primary" id="btnDownload">⬇️ הורד כקובץ וורד</button>
+  </div>
+</div>
+
+<div id="workspace"></div>
+
+<div id="selToolbar">
+  <select id="selFont" title="גופן">
+    <option value="Arial">Arial</option>
+    <option value="'David', serif">David</option>
+    <option value="'Times New Roman', serif">Times</option>
+    <option value="Calibri, sans-serif">Calibri</option>
+    <option value="'Rubik', sans-serif">Rubik</option>
+    <option value="Tahoma">Tahoma</option>
+  </select>
+  <select id="selSize" title="גודל">
+    <option value="1">10</option>
+    <option value="2">13</option>
+    <option value="3">16</option>
+    <option value="4">18</option>
+    <option value="5">24</option>
+    <option value="6">32</option>
+    <option value="7">48</option>
+  </select>
+  <div class="divider"></div>
+  <button id="selBold" title="מודגש"><b>B</b></button>
+  <button id="selItalic" title="נטוי"><i>I</i></button>
+  <button id="selUnderline" title="קו תחתון"><u>U</u></button>
+  <div class="divider"></div>
+  <label title="צבע טקסט" style="display:flex; align-items:center;">
+    <input type="color" id="selColor" value="#2b2d33">
+  </label>
+  <label title="הדגשה" style="display:flex; align-items:center;">
+    <input type="color" id="selHilite" value="#fff6a3">
+  </label>
+</div>
+
+<div id="searchBox">
+  <input type="text" id="searchInput" placeholder="חפש מילה בגיליון...">
+  <span id="searchCount">0/0</span>
+  <button id="searchPrev">‹ הקודם</button>
+  <button id="searchNext">הבא ›</button>
+  <button id="searchClose">✕</button>
+</div>
+
+<div id="status"></div>
+
+<script>
+const workspace = document.getElementById('workspace');
+const statusEl = document.getElementById('status');
+
+function showStatus(msg){
+  statusEl.textContent = msg;
+  statusEl.classList.add('show');
+  clearTimeout(showStatus._t);
+  showStatus._t = setTimeout(()=>statusEl.classList.remove('show'), 1800);
+}
+
+/* ================= Pages management ================= */
+let pages = []; // {sheet, content, numberEl}
+let activeContent = null;
+
+function createPage(){
+  const sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  const content = document.createElement('div');
+  content.className = 'page-content';
+  content.contentEditable = 'true';
+  content.spellcheck = true;
+  sheet.appendChild(content);
+  const numberEl = document.createElement('div');
+  numberEl.className = 'page-number';
+  const wrapper = document.createElement('div');
+  wrapper.appendChild(sheet);
+  wrapper.appendChild(numberEl);
+  workspace.appendChild(wrapper);
+
+  content.addEventListener('focus', ()=> activeContent = content);
+  content.addEventListener('input', ()=>{ activeContent = content; scheduleReflow(); });
+  content.addEventListener('paste', ()=>{ setTimeout(scheduleReflow, 30); });
+
+  const p = {sheet, content, numberEl, wrapper};
+  return p;
+}
+
+function resetToSinglePage(){
+  workspace.innerHTML = '';
+  pages = [createPage()];
+  activeContent = pages[0].content;
+  updatePageNumbers();
+}
+
+function updatePageNumbers(){
+  pages.forEach((p, i)=>{
+    p.numberEl.textContent = `עמוד ${i+1} מתוך ${pages.length}`;
+  });
+}
+
+function isPageEmpty(p){
+  return p.content.childNodes.length === 0 ||
+    (p.content.childNodes.length === 1 && p.content.textContent.trim() === '' && !p.content.querySelector('img,table'));
+}
+
+let reflowTimer = null;
+function scheduleReflow(){
+  clearTimeout(reflowTimer);
+  reflowTimer = setTimeout(reflowPages, 220);
+}
+
+function saveSelectionRange(){
+  const sel = window.getSelection();
+  if(sel && sel.rangeCount) return sel.getRangeAt(0).cloneRange();
+  return null;
+}
+function restoreSelectionRange(range){
+  if(!range) return;
+  try{
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }catch(e){}
+}
+
+const MAX_PAGES = 400;
+const MAX_MOVES_PER_CALL = 3000;
+
+function reflowPages(){
+  const savedRange = saveSelectionRange();
+  let guard = 0;
+  let changed = true;
+  let totalMoves = 0;
+  let aborted = false;
+
+  while(changed && guard < 50 && !aborted){
+    changed = false;
+    guard++;
+    for(let i=0; i<pages.length; i++){
+      const content = pages[i].content;
+
+      // Pull content back from next page while there's room
+      while(pages[i+1]){
+        if(totalMoves++ > MAX_MOVES_PER_CALL){ aborted = true; break; }
+        const nextContent = pages[i+1].content;
+        if(!nextContent.firstChild) break;
+        if(content.scrollHeight > content.clientHeight) break;
+        content.appendChild(nextContent.firstChild);
+        changed = true;
+        if(content.scrollHeight > content.clientHeight){
+          // overflowed after pulling; push back and stop
+          nextContent.insertBefore(content.lastChild, nextContent.firstChild);
+          break;
+        }
+      }
+      if(aborted) break;
+
+      // Push overflowing content forward
+      while(content.scrollHeight > content.clientHeight && content.lastChild){
+        if(totalMoves++ > MAX_MOVES_PER_CALL){ aborted = true; break; }
+        // A single node that alone is taller than a full page can never be
+        // made to fit by moving it — stop here and let it overflow visually
+        // instead of creating pages forever.
+        if(content.childNodes.length === 1) break;
+        if(pages.length >= MAX_PAGES){ console.warn('הגעה למספר מרבי של עמודים'); aborted = true; break; }
+        if(!pages[i+1]) pages.push(createPageAfter(i));
+        const nextContent = pages[i+1].content;
+        nextContent.insertBefore(content.lastChild, nextContent.firstChild);
+        changed = true;
+      }
+      if(aborted) break;
+    }
+    // Remove trailing empty pages (keep at least one)
+    while(pages.length > 1 && isPageEmpty(pages[pages.length-1])){
+      const last = pages.pop();
+      last.wrapper.remove();
+      changed = true;
+    }
+  }
+  updatePageNumbers();
+  restoreSelectionRange(savedRange);
+}
+
+function createPageAfter(index){
+  const p = createPage();
+  // Move the new page's wrapper to the correct position in the DOM
+  const refWrapper = pages[index].wrapper;
+  refWrapper.after(p.wrapper);
+  return p;
+}
+
+/* ================= Formatting commands ================= */
+function focusActive(){
+  if(!activeContent) activeContent = pages[0].content;
+  activeContent.focus();
+}
+function exec(cmd, val=null){
+  focusActive();
+  document.execCommand(cmd, false, val);
+  scheduleReflow();
+}
+
+document.getElementById('newDocBtn').addEventListener('click', ()=>{
+  const hasContent = pages.some(p=>!isPageEmpty(p));
+  if(hasContent && !confirm('ליצור מסמך חדש? התוכן הנוכחי יימחק אם לא הורדת אותו.')) return;
+  resetToSinglePage();
+});
+
+document.getElementById('btnBold').onclick = ()=>exec('bold');
+document.getElementById('btnItalic').onclick = ()=>exec('italic');
+document.getElementById('btnUnderline').onclick = ()=>exec('underline');
+document.getElementById('btnLeft').onclick = ()=>exec('justifyRight');
+document.getElementById('btnCenter').onclick = ()=>exec('justifyCenter');
+document.getElementById('btnRight').onclick = ()=>exec('justifyLeft');
+document.getElementById('fontFamily').addEventListener('change', (e)=> exec('fontName', e.target.value));
+document.getElementById('fontSize').addEventListener('change', (e)=> exec('fontSize', e.target.value));
+document.getElementById('textColor').addEventListener('input', (e)=> exec('foreColor', e.target.value));
+document.getElementById('bgColor').addEventListener('input', (e)=> exec('hiliteColor', e.target.value));
+
+/* ---------- Insert image ---------- */
+document.getElementById('imgInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    focusActive();
+    document.execCommand('insertImage', false, ev.target.result);
+    scheduleReflow();
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+
+/* ---------- Open existing .docx ---------- */
+document.getElementById('openDocx').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+
+  if(typeof mammoth === 'undefined'){
+    alert('ספריית קריאת קובצי Word עדיין לא נטענה (בדוק חיבור לאינטרנט) ונסה שוב בעוד רגע, או רענן את הדף.');
+    e.target.value = '';
+    return;
+  }
+
+  showStatus('טוען קובץ...');
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{
+      mammoth.convertToHtml({arrayBuffer: ev.target.result})
+        .then(result=>{
+          resetToSinglePage();
+          pages[0].content.innerHTML = result.value;
+          reflowPages();
+          showStatus('הקובץ נטען בהצלחה');
+        })
+        .catch(err=>{
+          console.error(err);
+          alert('שגיאה בטעינת הקובץ. ודא שזהו קובץ .docx תקין.');
+        });
+    }catch(err){
+      console.error(err);
+      alert('שגיאה בלתי צפויה בטעינת הקובץ.');
+    }
+  };
+  reader.onerror = ()=>{
+    alert('שגיאה בקריאת הקובץ מהמחשב.');
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+/* ---------- Download as Word file ---------- */
+document.getElementById('btnDownload').addEventListener('click', ()=>{
+  const name = prompt('שם הקובץ:', 'המסמך שלי') || 'document';
+  const bodyContent = pages.map((p, i)=>{
+    const brk = i > 0 ? '<br style="page-break-before:always">' : '';
+    return brk + p.content.innerHTML;
+  }).join('');
+
+  const htmlDoc = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+        xmlns:w="urn:schemas-microsoft-com:office:word"
+        xmlns="http://www.w3.org/TR/REC-html40">
+  <head>
+    <meta charset="utf-8">
+    <title>${name}</title>
+    <!--[if gte mso 9]>
+    <xml>
+      <w:WordDocument>
+        <w:View>Print</w:View>
+        <w:Zoom>100</w:Zoom>
+        <w:DoNotOptimizeForBrowser/>
+      </w:WordDocument>
+    </xml>
+    <![endif]-->
+    <style>
+      body { font-family: Arial, sans-serif; direction: rtl; font-size: 16px; line-height:1.6; }
+      table { border-collapse: collapse; width:100%; }
+      table td, table th { border:1px solid #888; padding:5px 9px; }
+    </style>
+  </head>
+  <body dir="rtl">${bodyContent}</body>
+  </html>`;
+
+  const blob = new Blob(['\ufeff', htmlDoc], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name.endsWith('.doc') ? name : name + '.doc';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showStatus('הקובץ הורד בהצלחה');
+});
+
+/* ================= Floating selection toolbar ================= */
+const selToolbar = document.getElementById('selToolbar');
+let selSavedRange = null;
+
+function isSelectionInsidePage(sel){
+  if(!sel || sel.rangeCount === 0) return false;
+  const node = sel.anchorNode;
+  if(!node) return false;
+  const el = node.nodeType === 1 ? node : node.parentElement;
+  return !!(el && el.closest && el.closest('.page-content'));
+}
+
+document.addEventListener('selectionchange', ()=>{
+  const sel = window.getSelection();
+  if(sel && !sel.isCollapsed && isSelectionInsidePage(sel)){
+    selSavedRange = sel.getRangeAt(0).cloneRange();
+    const rect = selSavedRange.getBoundingClientRect();
+    if(rect && (rect.width || rect.height)){
+      selToolbar.classList.add('open');
+      const top = Math.max(8, rect.top - 50);
+      let left = rect.left + rect.width/2 - 140;
+      left = Math.max(8, Math.min(left, window.innerWidth - 300));
+      selToolbar.style.top = top + 'px';
+      selToolbar.style.left = left + 'px';
+    }
+  } else if(!selToolbar.matches(':hover')){
+    selToolbar.classList.remove('open');
+  }
+});
+
+function execOnSelection(cmd, val=null){
+  restoreSelectionRange(selSavedRange);
+  document.execCommand(cmd, false, val);
+  const sel = window.getSelection();
+  if(sel && sel.rangeCount) selSavedRange = sel.getRangeAt(0).cloneRange();
+  scheduleReflow();
+}
+
+// Prevent buttons from stealing focus (which would collapse the selection)
+selToolbar.querySelectorAll('button').forEach(btn=>{
+  btn.addEventListener('mousedown', (e)=> e.preventDefault());
+});
+
+document.getElementById('selBold').onclick = ()=> execOnSelection('bold');
+document.getElementById('selItalic').onclick = ()=> execOnSelection('italic');
+document.getElementById('selUnderline').onclick = ()=> execOnSelection('underline');
+document.getElementById('selFont').addEventListener('change', (e)=> execOnSelection('fontName', e.target.value));
+document.getElementById('selSize').addEventListener('change', (e)=> execOnSelection('fontSize', e.target.value));
+document.getElementById('selColor').addEventListener('input', (e)=> execOnSelection('foreColor', e.target.value));
+document.getElementById('selHilite').addEventListener('input', (e)=> execOnSelection('hiliteColor', e.target.value));
+
+/* ================= Search (Ctrl+G) ================= */
+const searchBox = document.getElementById('searchBox');
+const searchInput = document.getElementById('searchInput');
+const searchCount = document.getElementById('searchCount');
+let matches = [];
+let currentMatch = -1;
+
+function clearHighlights(){
+  workspace.querySelectorAll('mark.hit').forEach(m=>{
+    const parent = m.parentNode;
+    while(m.firstChild) parent.insertBefore(m.firstChild, m);
+    parent.removeChild(m);
+    parent.normalize();
+  });
+  matches = [];
+  currentMatch = -1;
+}
+
+function highlightMatches(term){
+  clearHighlights();
+  if(!term){
+    searchCount.textContent = '0/0';
+    return;
+  }
+  const lowerTerm = term.toLowerCase();
+
+  pages.forEach(p=>{
+    const root = p.content;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    const textNodes = [];
+    let node;
+    while(node = walker.nextNode()) textNodes.push(node);
+
+    textNodes.forEach(tn=>{
+      const text = tn.nodeValue;
+      const lowerText = text.toLowerCase();
+      if(!lowerText.includes(lowerTerm)) return;
+
+      const frag = document.createDocumentFragment();
+      let lastIndex = 0;
+      let idx;
+      while((idx = lowerText.indexOf(lowerTerm, lastIndex)) !== -1){
+        if(idx > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, idx)));
+        const mark = document.createElement('mark');
+        mark.className = 'hit';
+        mark.textContent = text.slice(idx, idx + term.length);
+        frag.appendChild(mark);
+        matches.push(mark);
+        lastIndex = idx + term.length;
+      }
+      if(lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+      tn.parentNode.replaceChild(frag, tn);
+    });
+  });
+
+  searchCount.textContent = matches.length ? `1/${matches.length}` : '0/0';
+  if(matches.length){
+    currentMatch = 0;
+    setCurrent(0);
+  }
+}
+
+function setCurrent(i){
+  matches.forEach(m=>m.classList.remove('current'));
+  if(matches[i]){
+    matches[i].classList.add('current');
+    matches[i].scrollIntoView({block:'center', behavior:'smooth'});
+    searchCount.textContent = `${i+1}/${matches.length}`;
+  }
+}
+
+searchInput.addEventListener('input', (e)=> highlightMatches(e.target.value));
+
+document.getElementById('searchNext').onclick = ()=>{
+  if(!matches.length) return;
+  currentMatch = (currentMatch + 1) % matches.length;
+  setCurrent(currentMatch);
+};
+document.getElementById('searchPrev').onclick = ()=>{
+  if(!matches.length) return;
+  currentMatch = (currentMatch - 1 + matches.length) % matches.length;
+  setCurrent(currentMatch);
+};
+document.getElementById('searchClose').onclick = closeSearch;
+
+function openSearch(){
+  searchBox.classList.add('open');
+  searchInput.focus();
+  searchInput.select();
+}
+function closeSearch(){
+  searchBox.classList.remove('open');
+  clearHighlights();
+  searchInput.value = '';
+}
+
+document.addEventListener('keydown', (e)=>{
+  if(e.ctrlKey && (e.code === 'KeyG')){
+    e.preventDefault();
+    if(searchBox.classList.contains('open')) closeSearch();
+    else openSearch();
+  }
+  if(e.key === 'Escape' && searchBox.classList.contains('open')){
+    closeSearch();
+  }
+  if(e.key === 'Enter' && document.activeElement === searchInput){
+    e.preventDefault();
+    document.getElementById('searchNext').click();
+  }
+});
+
+/* ================= Init ================= */
+resetToSinglePage();
+window.addEventListener('resize', scheduleReflow);
+</script>
+</body>
+</html>
