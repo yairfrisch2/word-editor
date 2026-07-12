@@ -14,8 +14,11 @@
     --accent: #2f5fd0;
     --accent-soft: #e7edfb;
     --muted: #757b86;
-    --danger: #c1443a;
     --shadow: 0 2px 10px rgba(20,22,30,0.08);
+    --page-w: 816px;
+    --page-h: 1056px;
+    --pad-v: 70px;
+    --pad-h: 64px;
   }
   *{box-sizing:border-box;}
   body{
@@ -62,7 +65,6 @@
     transition:.12s;
   }
   button.tb-btn:hover{background:var(--accent-soft); border-color:var(--accent);}
-  button.tb-btn.active{background:var(--accent); color:#fff;}
   button.primary{
     background:var(--accent);
     color:#fff;
@@ -103,25 +105,82 @@
     flex:1;
     overflow:auto;
     display:flex;
-    justify-content:center;
+    flex-direction:column;
+    align-items:center;
     padding:36px 20px 80px;
+    gap:28px;
   }
-  #page{
+  .sheet{
     background:var(--paper);
-    width:816px;
+    width:var(--page-w);
     max-width:100%;
-    min-height:1056px;
+    height:var(--page-h);
     box-shadow:var(--shadow);
-    padding:70px 64px;
+    padding:var(--pad-v) var(--pad-h);
+    display:flex;
+    flex-direction:column;
+  }
+  .page-content{
     outline:none;
     line-height:1.6;
     font-size:16px;
+    height:100%;
+    overflow:hidden;
   }
-  #page img{max-width:100%;}
-  #page:empty:before{
+  .page-content img{max-width:100%;}
+  .page-content table{border-collapse:collapse; width:100%; margin:8px 0;}
+  .page-content table td, .page-content table th{
+    border:1px solid #b9bec7;
+    padding:5px 9px;
+    text-align:right;
+  }
+  .page-content table th{background:#f2f4f7;}
+  .page-content:empty:before{
     content:"התחל לכתוב כאן...";
     color:#b3b7bf;
   }
+  .page-number{
+    text-align:center;
+    font-size:12px;
+    color:var(--muted);
+    margin-top:6px;
+  }
+
+  /* Floating selection toolbar */
+  #selToolbar{
+    position:fixed;
+    display:none;
+    align-items:center;
+    gap:6px;
+    background:#26282e;
+    padding:6px 8px;
+    border-radius:10px;
+    box-shadow:0 6px 18px rgba(0,0,0,0.25);
+    z-index:40;
+  }
+  #selToolbar.open{display:flex;}
+  #selToolbar button{
+    background:transparent;
+    border:1px solid transparent;
+    border-radius:6px;
+    color:#fff;
+    padding:5px 8px;
+    cursor:pointer;
+    font-size:13px;
+  }
+  #selToolbar button:hover{background:#3c3f47;}
+  #selToolbar select{
+    background:#3c3f47;
+    color:#fff;
+    border:none;
+    border-radius:6px;
+    padding:5px 6px;
+    font-size:12.5px;
+  }
+  #selToolbar input[type=color]{
+    width:26px; height:26px; padding:0; border:none; border-radius:6px; background:#3c3f47;
+  }
+  #selToolbar .divider{width:1px; height:20px; background:#484b54;}
 
   /* Search box */
   #searchBox{
@@ -183,9 +242,7 @@
 
 <div id="toolbar">
   <div class="group">
-    <label class="file-label">📄 מסמך חדש
-      <input type="button" style="display:none">
-    </label>
+    <label class="file-label" id="newDocBtn">📄 מסמך חדש</label>
   </div>
   <div class="group">
     <label class="file-label">📂 פתח קובץ וורד
@@ -239,8 +296,37 @@
   </div>
 </div>
 
-<div id="workspace">
-  <div id="page" contenteditable="true" spellcheck="true"></div>
+<div id="workspace"></div>
+
+<div id="selToolbar">
+  <select id="selFont" title="גופן">
+    <option value="Arial">Arial</option>
+    <option value="'David', serif">David</option>
+    <option value="'Times New Roman', serif">Times</option>
+    <option value="Calibri, sans-serif">Calibri</option>
+    <option value="'Rubik', sans-serif">Rubik</option>
+    <option value="Tahoma">Tahoma</option>
+  </select>
+  <select id="selSize" title="גודל">
+    <option value="1">10</option>
+    <option value="2">13</option>
+    <option value="3">16</option>
+    <option value="4">18</option>
+    <option value="5">24</option>
+    <option value="6">32</option>
+    <option value="7">48</option>
+  </select>
+  <div class="divider"></div>
+  <button id="selBold" title="מודגש"><b>B</b></button>
+  <button id="selItalic" title="נטוי"><i>I</i></button>
+  <button id="selUnderline" title="קו תחתון"><u>U</u></button>
+  <div class="divider"></div>
+  <label title="צבע טקסט" style="display:flex; align-items:center;">
+    <input type="color" id="selColor" value="#2b2d33">
+  </label>
+  <label title="הדגשה" style="display:flex; align-items:center;">
+    <input type="color" id="selHilite" value="#fff6a3">
+  </label>
 </div>
 
 <div id="searchBox">
@@ -254,7 +340,7 @@
 <div id="status"></div>
 
 <script>
-const page = document.getElementById('page');
+const workspace = document.getElementById('workspace');
 const statusEl = document.getElementById('status');
 
 function showStatus(msg){
@@ -264,38 +350,149 @@ function showStatus(msg){
   showStatus._t = setTimeout(()=>statusEl.classList.remove('show'), 1800);
 }
 
-/* ---------- New document ---------- */
-document.querySelector('.group .file-label').addEventListener('click', (e)=>{
-  e.preventDefault();
-  if(page.innerHTML.trim() && !confirm('ליצור מסמך חדש? התוכן הנוכחי יימחק אם לא הורדת אותו.')) return;
-  page.innerHTML = '';
-  page.focus();
+/* ================= Pages management ================= */
+let pages = []; // {sheet, content, numberEl}
+let activeContent = null;
+
+function createPage(){
+  const sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  const content = document.createElement('div');
+  content.className = 'page-content';
+  content.contentEditable = 'true';
+  content.spellcheck = true;
+  sheet.appendChild(content);
+  const numberEl = document.createElement('div');
+  numberEl.className = 'page-number';
+  const wrapper = document.createElement('div');
+  wrapper.appendChild(sheet);
+  wrapper.appendChild(numberEl);
+  workspace.appendChild(wrapper);
+
+  content.addEventListener('focus', ()=> activeContent = content);
+  content.addEventListener('input', ()=>{ activeContent = content; scheduleReflow(); });
+  content.addEventListener('paste', ()=>{ setTimeout(scheduleReflow, 30); });
+
+  const p = {sheet, content, numberEl, wrapper};
+  return p;
+}
+
+function resetToSinglePage(){
+  workspace.innerHTML = '';
+  pages = [createPage()];
+  activeContent = pages[0].content;
+  updatePageNumbers();
+}
+
+function updatePageNumbers(){
+  pages.forEach((p, i)=>{
+    p.numberEl.textContent = `עמוד ${i+1} מתוך ${pages.length}`;
+  });
+}
+
+function isPageEmpty(p){
+  return p.content.childNodes.length === 0 ||
+    (p.content.childNodes.length === 1 && p.content.textContent.trim() === '' && !p.content.querySelector('img,table'));
+}
+
+let reflowTimer = null;
+function scheduleReflow(){
+  clearTimeout(reflowTimer);
+  reflowTimer = setTimeout(reflowPages, 220);
+}
+
+function saveSelectionRange(){
+  const sel = window.getSelection();
+  if(sel && sel.rangeCount) return sel.getRangeAt(0).cloneRange();
+  return null;
+}
+function restoreSelectionRange(range){
+  if(!range) return;
+  try{
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }catch(e){}
+}
+
+function reflowPages(){
+  const savedRange = saveSelectionRange();
+  let guard = 0;
+  let changed = true;
+  while(changed && guard < 50){
+    changed = false;
+    guard++;
+    for(let i=0; i<pages.length; i++){
+      const content = pages[i].content;
+
+      // Pull content back from next page while there's room
+      while(pages[i+1]){
+        const nextContent = pages[i+1].content;
+        if(!nextContent.firstChild) break;
+        if(content.scrollHeight > content.clientHeight) break;
+        content.appendChild(nextContent.firstChild);
+        changed = true;
+        if(content.scrollHeight > content.clientHeight){
+          // overflowed after pulling; push back and stop
+          nextContent.insertBefore(content.lastChild, nextContent.firstChild);
+          break;
+        }
+      }
+
+      // Push overflowing content forward
+      while(content.scrollHeight > content.clientHeight && content.lastChild){
+        if(!pages[i+1]) pages.push(createPageAfter(i));
+        const nextContent = pages[i+1].content;
+        nextContent.insertBefore(content.lastChild, nextContent.firstChild);
+        changed = true;
+      }
+    }
+    // Remove trailing empty pages (keep at least one)
+    while(pages.length > 1 && isPageEmpty(pages[pages.length-1])){
+      const last = pages.pop();
+      last.wrapper.remove();
+      changed = true;
+    }
+  }
+  updatePageNumbers();
+  restoreSelectionRange(savedRange);
+}
+
+function createPageAfter(index){
+  const p = createPage();
+  // Move the new page's wrapper to the correct position in the DOM
+  const refWrapper = pages[index].wrapper;
+  refWrapper.after(p.wrapper);
+  return p;
+}
+
+/* ================= Formatting commands ================= */
+function focusActive(){
+  if(!activeContent) activeContent = pages[0].content;
+  activeContent.focus();
+}
+function exec(cmd, val=null){
+  focusActive();
+  document.execCommand(cmd, false, val);
+  scheduleReflow();
+}
+
+document.getElementById('newDocBtn').addEventListener('click', ()=>{
+  const hasContent = pages.some(p=>!isPageEmpty(p));
+  if(hasContent && !confirm('ליצור מסמך חדש? התוכן הנוכחי יימחק אם לא הורדת אותו.')) return;
+  resetToSinglePage();
 });
 
-/* ---------- Formatting commands ---------- */
-function exec(cmd, val=null){
-  document.execCommand(cmd, false, val);
-  page.focus();
-}
 document.getElementById('btnBold').onclick = ()=>exec('bold');
 document.getElementById('btnItalic').onclick = ()=>exec('italic');
 document.getElementById('btnUnderline').onclick = ()=>exec('underline');
 document.getElementById('btnLeft').onclick = ()=>exec('justifyRight');
 document.getElementById('btnCenter').onclick = ()=>exec('justifyCenter');
 document.getElementById('btnRight').onclick = ()=>exec('justifyLeft');
-
-document.getElementById('fontFamily').addEventListener('change', (e)=>{
-  exec('fontName', e.target.value);
-});
-document.getElementById('fontSize').addEventListener('change', (e)=>{
-  exec('fontSize', e.target.value);
-});
-document.getElementById('textColor').addEventListener('input', (e)=>{
-  exec('foreColor', e.target.value);
-});
-document.getElementById('bgColor').addEventListener('input', (e)=>{
-  exec('hiliteColor', e.target.value);
-});
+document.getElementById('fontFamily').addEventListener('change', (e)=> exec('fontName', e.target.value));
+document.getElementById('fontSize').addEventListener('change', (e)=> exec('fontSize', e.target.value));
+document.getElementById('textColor').addEventListener('input', (e)=> exec('foreColor', e.target.value));
+document.getElementById('bgColor').addEventListener('input', (e)=> exec('hiliteColor', e.target.value));
 
 /* ---------- Insert image ---------- */
 document.getElementById('imgInput').addEventListener('change', (e)=>{
@@ -303,8 +500,9 @@ document.getElementById('imgInput').addEventListener('change', (e)=>{
   if(!file) return;
   const reader = new FileReader();
   reader.onload = (ev)=>{
-    page.focus();
-    exec('insertImage', ev.target.result);
+    focusActive();
+    document.execCommand('insertImage', false, ev.target.result);
+    scheduleReflow();
   };
   reader.readAsDataURL(file);
   e.target.value = '';
@@ -318,7 +516,9 @@ document.getElementById('openDocx').addEventListener('change', (e)=>{
   reader.onload = (ev)=>{
     mammoth.convertToHtml({arrayBuffer: ev.target.result})
       .then(result=>{
-        page.innerHTML = result.value;
+        resetToSinglePage();
+        pages[0].content.innerHTML = result.value;
+        reflowPages();
         showStatus('הקובץ נטען בהצלחה');
       })
       .catch(err=>{
@@ -333,7 +533,11 @@ document.getElementById('openDocx').addEventListener('change', (e)=>{
 /* ---------- Download as Word file ---------- */
 document.getElementById('btnDownload').addEventListener('click', ()=>{
   const name = prompt('שם הקובץ:', 'המסמך שלי') || 'document';
-  const content = page.innerHTML;
+  const bodyContent = pages.map((p, i)=>{
+    const brk = i > 0 ? '<br style="page-break-before:always">' : '';
+    return brk + p.content.innerHTML;
+  }).join('');
+
   const htmlDoc = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
         xmlns:w="urn:schemas-microsoft-com:office:word"
         xmlns="http://www.w3.org/TR/REC-html40">
@@ -351,9 +555,11 @@ document.getElementById('btnDownload').addEventListener('click', ()=>{
     <![endif]-->
     <style>
       body { font-family: Arial, sans-serif; direction: rtl; font-size: 16px; line-height:1.6; }
+      table { border-collapse: collapse; width:100%; }
+      table td, table th { border:1px solid #888; padding:5px 9px; }
     </style>
   </head>
-  <body dir="rtl">${content}</body>
+  <body dir="rtl">${bodyContent}</body>
   </html>`;
 
   const blob = new Blob(['\ufeff', htmlDoc], { type: 'application/msword' });
@@ -368,7 +574,58 @@ document.getElementById('btnDownload').addEventListener('click', ()=>{
   showStatus('הקובץ הורד בהצלחה');
 });
 
-/* ---------- Search (Ctrl+G) ---------- */
+/* ================= Floating selection toolbar ================= */
+const selToolbar = document.getElementById('selToolbar');
+let selSavedRange = null;
+
+function isSelectionInsidePage(sel){
+  if(!sel || sel.rangeCount === 0) return false;
+  const node = sel.anchorNode;
+  if(!node) return false;
+  const el = node.nodeType === 1 ? node : node.parentElement;
+  return !!(el && el.closest && el.closest('.page-content'));
+}
+
+document.addEventListener('selectionchange', ()=>{
+  const sel = window.getSelection();
+  if(sel && !sel.isCollapsed && isSelectionInsidePage(sel)){
+    selSavedRange = sel.getRangeAt(0).cloneRange();
+    const rect = selSavedRange.getBoundingClientRect();
+    if(rect && (rect.width || rect.height)){
+      selToolbar.classList.add('open');
+      const top = Math.max(8, rect.top - 50);
+      let left = rect.left + rect.width/2 - 140;
+      left = Math.max(8, Math.min(left, window.innerWidth - 300));
+      selToolbar.style.top = top + 'px';
+      selToolbar.style.left = left + 'px';
+    }
+  } else if(!selToolbar.matches(':hover')){
+    selToolbar.classList.remove('open');
+  }
+});
+
+function execOnSelection(cmd, val=null){
+  restoreSelectionRange(selSavedRange);
+  document.execCommand(cmd, false, val);
+  const sel = window.getSelection();
+  if(sel && sel.rangeCount) selSavedRange = sel.getRangeAt(0).cloneRange();
+  scheduleReflow();
+}
+
+// Prevent buttons from stealing focus (which would collapse the selection)
+selToolbar.querySelectorAll('button').forEach(btn=>{
+  btn.addEventListener('mousedown', (e)=> e.preventDefault());
+});
+
+document.getElementById('selBold').onclick = ()=> execOnSelection('bold');
+document.getElementById('selItalic').onclick = ()=> execOnSelection('italic');
+document.getElementById('selUnderline').onclick = ()=> execOnSelection('underline');
+document.getElementById('selFont').addEventListener('change', (e)=> execOnSelection('fontName', e.target.value));
+document.getElementById('selSize').addEventListener('change', (e)=> execOnSelection('fontSize', e.target.value));
+document.getElementById('selColor').addEventListener('input', (e)=> execOnSelection('foreColor', e.target.value));
+document.getElementById('selHilite').addEventListener('input', (e)=> execOnSelection('hiliteColor', e.target.value));
+
+/* ================= Search (Ctrl+G) ================= */
 const searchBox = document.getElementById('searchBox');
 const searchInput = document.getElementById('searchInput');
 const searchCount = document.getElementById('searchCount');
@@ -376,7 +633,7 @@ let matches = [];
 let currentMatch = -1;
 
 function clearHighlights(){
-  page.querySelectorAll('mark.hit').forEach(m=>{
+  workspace.querySelectorAll('mark.hit').forEach(m=>{
     const parent = m.parentNode;
     while(m.firstChild) parent.insertBefore(m.firstChild, m);
     parent.removeChild(m);
@@ -392,31 +649,35 @@ function highlightMatches(term){
     searchCount.textContent = '0/0';
     return;
   }
-  const walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT, null);
-  const textNodes = [];
-  let node;
-  while(node = walker.nextNode()) textNodes.push(node);
-
   const lowerTerm = term.toLowerCase();
-  textNodes.forEach(tn=>{
-    const text = tn.nodeValue;
-    const lowerText = text.toLowerCase();
-    if(!lowerText.includes(lowerTerm)) return;
 
-    const frag = document.createDocumentFragment();
-    let lastIndex = 0;
-    let idx;
-    while((idx = lowerText.indexOf(lowerTerm, lastIndex)) !== -1){
-      if(idx > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, idx)));
-      const mark = document.createElement('mark');
-      mark.className = 'hit';
-      mark.textContent = text.slice(idx, idx + term.length);
-      frag.appendChild(mark);
-      matches.push(mark);
-      lastIndex = idx + term.length;
-    }
-    if(lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
-    tn.parentNode.replaceChild(frag, tn);
+  pages.forEach(p=>{
+    const root = p.content;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    const textNodes = [];
+    let node;
+    while(node = walker.nextNode()) textNodes.push(node);
+
+    textNodes.forEach(tn=>{
+      const text = tn.nodeValue;
+      const lowerText = text.toLowerCase();
+      if(!lowerText.includes(lowerTerm)) return;
+
+      const frag = document.createDocumentFragment();
+      let lastIndex = 0;
+      let idx;
+      while((idx = lowerText.indexOf(lowerTerm, lastIndex)) !== -1){
+        if(idx > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, idx)));
+        const mark = document.createElement('mark');
+        mark.className = 'hit';
+        mark.textContent = text.slice(idx, idx + term.length);
+        frag.appendChild(mark);
+        matches.push(mark);
+        lastIndex = idx + term.length;
+      }
+      if(lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+      tn.parentNode.replaceChild(frag, tn);
+    });
   });
 
   searchCount.textContent = matches.length ? `1/${matches.length}` : '0/0';
@@ -475,7 +736,9 @@ document.addEventListener('keydown', (e)=>{
   }
 });
 
-page.focus();
+/* ================= Init ================= */
+resetToSinglePage();
+window.addEventListener('resize', scheduleReflow);
 </script>
 </body>
 </html>
