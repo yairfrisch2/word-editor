@@ -415,11 +415,17 @@ function restoreSelectionRange(range){
   }catch(e){}
 }
 
+const MAX_PAGES = 400;
+const MAX_MOVES_PER_CALL = 3000;
+
 function reflowPages(){
   const savedRange = saveSelectionRange();
   let guard = 0;
   let changed = true;
-  while(changed && guard < 50){
+  let totalMoves = 0;
+  let aborted = false;
+
+  while(changed && guard < 50 && !aborted){
     changed = false;
     guard++;
     for(let i=0; i<pages.length; i++){
@@ -427,6 +433,7 @@ function reflowPages(){
 
       // Pull content back from next page while there's room
       while(pages[i+1]){
+        if(totalMoves++ > MAX_MOVES_PER_CALL){ aborted = true; break; }
         const nextContent = pages[i+1].content;
         if(!nextContent.firstChild) break;
         if(content.scrollHeight > content.clientHeight) break;
@@ -438,14 +445,22 @@ function reflowPages(){
           break;
         }
       }
+      if(aborted) break;
 
       // Push overflowing content forward
       while(content.scrollHeight > content.clientHeight && content.lastChild){
+        if(totalMoves++ > MAX_MOVES_PER_CALL){ aborted = true; break; }
+        // A single node that alone is taller than a full page can never be
+        // made to fit by moving it — stop here and let it overflow visually
+        // instead of creating pages forever.
+        if(content.childNodes.length === 1) break;
+        if(pages.length >= MAX_PAGES){ console.warn('הגעה למספר מרבי של עמודים'); aborted = true; break; }
         if(!pages[i+1]) pages.push(createPageAfter(i));
         const nextContent = pages[i+1].content;
         nextContent.insertBefore(content.lastChild, nextContent.firstChild);
         changed = true;
       }
+      if(aborted) break;
     }
     // Remove trailing empty pages (keep at least one)
     while(pages.length > 1 && isPageEmpty(pages[pages.length-1])){
@@ -512,19 +527,35 @@ document.getElementById('imgInput').addEventListener('change', (e)=>{
 document.getElementById('openDocx').addEventListener('change', (e)=>{
   const file = e.target.files[0];
   if(!file) return;
+
+  if(typeof mammoth === 'undefined'){
+    alert('ספריית קריאת קובצי Word עדיין לא נטענה (בדוק חיבור לאינטרנט) ונסה שוב בעוד רגע, או רענן את הדף.');
+    e.target.value = '';
+    return;
+  }
+
+  showStatus('טוען קובץ...');
   const reader = new FileReader();
   reader.onload = (ev)=>{
-    mammoth.convertToHtml({arrayBuffer: ev.target.result})
-      .then(result=>{
-        resetToSinglePage();
-        pages[0].content.innerHTML = result.value;
-        reflowPages();
-        showStatus('הקובץ נטען בהצלחה');
-      })
-      .catch(err=>{
-        console.error(err);
-        alert('שגיאה בטעינת הקובץ. ודא שזהו קובץ .docx תקין.');
-      });
+    try{
+      mammoth.convertToHtml({arrayBuffer: ev.target.result})
+        .then(result=>{
+          resetToSinglePage();
+          pages[0].content.innerHTML = result.value;
+          reflowPages();
+          showStatus('הקובץ נטען בהצלחה');
+        })
+        .catch(err=>{
+          console.error(err);
+          alert('שגיאה בטעינת הקובץ. ודא שזהו קובץ .docx תקין.');
+        });
+    }catch(err){
+      console.error(err);
+      alert('שגיאה בלתי צפויה בטעינת הקובץ.');
+    }
+  };
+  reader.onerror = ()=>{
+    alert('שגיאה בקריאת הקובץ מהמחשב.');
   };
   reader.readAsArrayBuffer(file);
   e.target.value = '';
